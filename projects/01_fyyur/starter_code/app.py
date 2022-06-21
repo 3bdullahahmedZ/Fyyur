@@ -10,6 +10,7 @@ from urllib import response
 import dateutil.parser
 import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
+from sqlalchemy import func
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
@@ -122,16 +123,18 @@ def venues():
     #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
     areas = []
     venues = Venue.query.all()
-    places = Venue.query.distinct(Venue.city, Venue.state).all()
-    for place in places:
+    locations = db.session.query(Venue.state, Venue.city).group_by(
+        Venue.state, Venue.city).all()
+
+    for loc in locations:
+        lvenue = []
+        for venue in venues:
+            if(venue.state == loc.state and venue.city == loc.city):
+                lvenue.append(venue)
         areas.append({
-            'city': place.city,
-            'state': place.state,
-            'venues': [{
-                'id': venue.id,
-                'name': venue.name,
-            } for venue in venues if
-                venue.city == place.city and venue.state == place.state]
+            "state": loc.state,
+            "city": loc.city,
+            "venues": lvenue,
         })
     return render_template('pages/venues.html', areas=areas)
 
@@ -143,7 +146,7 @@ def search_venues():
     # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
     search_term = request.form.get('search_term', '')
     data = db.session.query(Venue).filter(
-        Venue.name.ilike(f'%{search_term}%')).all()
+        Venue.name.ilike('%'+search_term+'%')).all()
     response = {'data': data,
                 'count': len(data)}
 
@@ -161,26 +164,39 @@ def show_venue(venue_id):
     pdata = []
     for show, artist in upcoming_shows:
         udata = [{
-            "artist_id": show.artist_id,
-            "artist_name": artist.name,
-            "artist_image_link": artist.image_link,
-            "start_time": show.start_time
+            'artist_id': show.artist_id,
+            'artist_name': artist.name,
+            'artist_image_link': artist.image_link,
+            'start_time': show.start_time
         },
         ]
     for show, artist in past_shows:
         pdata = [{
-            "artist_id": show.artist_id,
-            "artist_name": artist.name,
-            "artist_image_link": artist.image_link,
-            "start_time": show.start_time
+            'artist_id': show.artist_id,
+            'artist_name': artist.name,
+            'artist_image_link': artist.image_link,
+            'start_time': show.start_time
         },
         ]
-    vdata = vars(venue)
-    vdata['past_shows'] = pdata
-    vdata['upcoming_shows'] = udata
-    vdata['past_shows_count'] = len(pdata)
-    vdata['upcoming_shows_count'] = len(udata)
-    return render_template('pages/show_venue.html', venue=vdata,)
+    data = {
+        'name': venue.name,
+        'id': venue.id,
+        'genres': venue.genres,
+        'city': venue.city,
+        'state': venue.state,
+        'adderess': venue.address,
+        'phone': venue.phone,
+        'website': venue.website,
+        'facebook_link': venue.facebook_link,
+        'image_link': venue.image_link,
+        'seeking_talent': venue.seeking_talent,
+        'seeking_description': venue.seeking_description,
+        'past_shows': pdata,
+        'upcoming_shows': udata,
+        'past_shows_count': len(pdata),
+        'upcoming_shows_count': len(udata)
+    }
+    return render_template('pages/show_venue.html', venue=data,)
 
 #  Create Venue
 #  ----------------------------------------------------------------
@@ -260,7 +276,7 @@ def search_artists():
     # search for "band" should return "The Wild Sax Band".
     search_term = request.form.get('search_term', '')
     data = db.session.query(Artist).filter(
-        Artist.name.ilike(f'%{search_term}%')).all()
+        Artist.name.ilike('%'+search_term+'%')).all()
     response = {'data': data,
                 'count': len(data)}
     return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
@@ -277,26 +293,38 @@ def show_artist(artist_id):
     pdata = []
     for show, venue in upcoming_shows:
         udata = [{
-            "venue_id": show.venue_id,
-            "venue_name": venue.name,
-            "venue_image_link": venue.image_link,
-            "start_time": show.start_time
+            'venue_id': show.venue_id,
+            'venue_name': venue.name,
+            'venue_image_link': venue.image_link,
+            'start_time': show.start_time
         },
         ]
     for show, venue in past_shows:
         pdata = [{
-            "venue_id": show.venue_id,
-            "venue_name": venue.name,
-            "venue_image_link": venue.image_link,
-            "start_time": show.start_time
+            'venue_id': show.venue_id,
+            'venue_name': venue.name,
+            'venue_image_link': venue.image_link,
+            'start_time': show.start_time
         },
         ]
-    adata = vars(artist)
-    adata['past_shows'] = pdata
-    adata['upcoming_shows'] = udata
-    adata['past_shows_count'] = len(pdata)
-    adata['upcoming_shows_count'] = len(udata)
-    return render_template('pages/show_artist.html', artist=adata)
+    data = {
+        'name': artist.name,
+        'id': artist.id,
+        'genres': artist.genres,
+        'city': artist.city,
+        'state': artist.state,
+        'phone': artist.phone,
+        'website': artist.website,
+        'facebook_link': artist.facebook_link,
+        'image_link': artist.image_link,
+        'seeking_venue': artist.seeking_venue,
+        'seeking_description': artist.seeking_description,
+        'past_shows': pdata,
+        'upcoming_shows': udata,
+        'past_shows_count': len(pdata),
+        'upcoming_shows_count': len(udata)
+    }
+    return render_template('pages/show_artist.html', artist=data)
 
 #  Update
 #  ----------------------------------------------------------------
